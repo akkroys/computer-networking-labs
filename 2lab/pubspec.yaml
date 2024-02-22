@@ -1,0 +1,7 @@
+name: cn_lab2
+
+environment:
+  sdk: '^3.1.0'
+
+dependencies:
+  udp: ^5.0.3

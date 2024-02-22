@@ -1,0 +1,20 @@
+{
+  "configVersion": 2,
+  "packages": [
+    {
+      "name": "udp",
+      "rootUri": "file:///C:/Users/Home/AppData/Local/Pub/Cache/hosted/pub.dev/udp-5.0.3",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
+      "name": "cn_lab2",
+      "rootUri": "../",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    }
+  ],
+  "generated": "2024-02-22T11:40:01.631439Z",
+  "generator": "pub",
+  "generatorVersion": "3.1.3"
+}

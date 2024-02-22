@@ -1,44 +1,59 @@
-import 'dart:convert';
 import 'dart:io';
+import 'dart:convert';
+import 'package:udp/udp.dart';
 
 void main() async {
-  var server = await ServerSocket.bind(InternetAddress.anyIPv4, 12345);
-  print('Сервер запущен и прослушивает порт ${server.port}');
+  var multicastEndpoint =
+      Endpoint.multicast(InternetAddress("239.1.2.3"), port: Port(54321));
 
-  await for (var socket in server) {
-    handleConnection(socket);
+  var receiver = await UDP.bind(multicastEndpoint);
+
+  var sender = await UDP.bind(Endpoint.any());
+
+  var responseReceiver = await UDP.bind(Endpoint.any());
+
+  print('Enter a string to send to the server:');
+  var input = stdin.readLineSync();
+  if (input != null) {
+    print('Sending: $input');
+    await sender.send(utf8.encode(input), multicastEndpoint);
+    await Future.delayed(Duration(seconds: 1));
   }
+
+
+  receiver.asStream().listen((datagram) async {
+    if (datagram != null) {
+      var str = String.fromCharCodes(datagram.data);
+      var modifiedString = swapCharacters(str);
+      print('Received: $str');
+      await Future.delayed(Duration(seconds: 1));
+      print('Modified: $modifiedString');
+      var clientEndpoint =
+          Endpoint.unicast(datagram.address, port: Port(datagram.port));
+      receiver.send(utf8.encode(modifiedString), clientEndpoint);
+    }
+  });
+
+  sender.asStream().listen((event) async {
+    if (event != null) {
+      var modifiedStr = utf8.decode(event.data);
+      print('Response from server: $modifiedStr');
+    }
+  });
+
+  await Future.delayed(Duration(seconds: 3));
+
+  sender.close();
+  receiver.close();
+  responseReceiver.close();
 }
 
-void handleConnection(Socket socket) {
-  print(
-      'Новое соединение с клиентом: ${socket.remoteAddress}:${socket.remotePort}');
-
-  socket.listen(
-    (List<int> data) {
-      var message = utf8.decode(data).trim();
-      var response = swapCharacters(message);
-      print('Получено сообщение от клиента: $message');
-      socket.write(response);
-      print('Отправлено обратно: $response');
-    },
-    onError: (e) {
-      print('Ошибка: $e');
-      socket.close();
-    },
-    onDone: () {
-      print('Клиент отключен');
-      socket.close();
-    },
-  );
-}
-
-String swapCharacters(String input) {
-  var characters = input.split('');
-  for (var i = 0; i < characters.length - 1; i += 2) {
-    var temp = characters[i];
-    characters[i] = characters[i + 1];
-    characters[i + 1] = temp;
+String swapCharacters(String str) {
+  var chars = str.split('');
+  for (int i = 0; i < chars.length - 1; i += 2) {
+    var temp = chars[i];
+    chars[i] = chars[i + 1];
+    chars[i + 1] = temp;
   }
-  return characters.join('');
+  return chars.join('');
 }
