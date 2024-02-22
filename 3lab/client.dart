@@ -2,32 +2,47 @@ import 'dart:convert';
 import 'dart:io';
 
 void main() async {
-  final socket = await Socket.connect('127.0.0.1', 3000);
-  print('Connected to server');
+  var socket = await Socket.connect('localhost', 8888);
+  print('Подключено к серверу ${socket.remoteAddress}:${socket.remotePort}');
 
-  print('Введите свой бюджет:');
-
-  var input = stdin.readLineSync();
-  
-  if (input != null && input.isNotEmpty) {
-    socket.writeln(input);
-
-    socket.listen(
-      (data) {
-        print('Server: ${utf8.decode(data)}');
-      },
-      onDone: () {
-        print('Server disconnected');
-        socket.close();
-        exit(0);
-      },
-      onError: (e) {
-        print('Ошибка: $e');
-        socket.close();
-      },
-    );
+  stdout.write('Введите ваш бюджет: ');
+  String? budgetInput = stdin.readLineSync();
+  if (budgetInput != null) {
+    var budget = double.tryParse(budgetInput);
+    if (budget != null) {
+      print('Отправлено: $budget');
+      socket.write(budget.toString());
+    } else {
+      print('Неверный формат бюджета');
+      socket.destroy();
+      return;
+    }
   } else {
-    print('Пустой ввод. Попробуйте снова.');
-    socket.close();
+    print('Ввод отсутствует');
+    socket.destroy();
+    return;
   }
+
+socket.listen((List<int> data) {
+  String decodedData = utf8.decode(data);
+  if (decodedData.startsWith('{') && decodedData.endsWith('}')) {
+    List<dynamic> selectedTours = json.decode(decodedData);
+    if (selectedTours.isNotEmpty) {
+      print('Доступные туры:');
+      for (var tour in selectedTours) {
+        print('Название: ${tour['name']}, Стоимость: ${tour['cost']}');
+      }
+    } else {
+      print('Нет доступных туров');
+    }
+  } else {
+    print(decodedData);
+  }
+  }, onDone: () {
+    print('Соединение с сервером закрыто.');
+    socket.destroy();
+  }, onError: (e) {
+    print('Ошибка при чтении данных: $e');
+    socket.destroy();
+  });
 }

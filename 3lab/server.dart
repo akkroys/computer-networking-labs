@@ -11,9 +11,6 @@ class Tour {
 }
 
 void main() async {
-  final server = await ServerSocket.bind('127.0.0.1', 3000);
-  print('Server listening on port 3000');
-
   List<Tour> tours = [
     Tour('Путешествие в Париж', 500.0, 7, 'Поезд'),
     Tour('Отдых на море', 300.0, 5, 'Автобус'),
@@ -22,43 +19,40 @@ void main() async {
     Tour('Круиз по реке', 1000.0, 14, 'Корабль'),
   ];
 
-  await for (var socket in server) {
+  var serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, 8888);
+  print(
+      'Сервер запущен на адресе ${serverSocket.address} порт ${serverSocket.port}');
+
+  await for (var socket in serverSocket) {
     handleConnection(socket, tours);
   }
 }
 
 void handleConnection(Socket socket, List<Tour> tours) {
-  print('Client connected: ${socket.remoteAddress}:${socket.remotePort}');
+  print('Новое подключение: ${socket.remoteAddress}:${socket.remotePort}');
 
-  socket.listen((List<int> data) async {
-    var message = utf8.decode(data).trim();
-        print('Received: $message');
-
-    try {
-      var requestedBudget = double.parse(message);
-
-      var matchingTours = tours.where((tour) => tour.cost <= requestedBudget).toList();
-      
-      if (matchingTours.isNotEmpty) {
-        var response = matchingTours.map((tour) => '${tour.name}, цена: ${tour.cost}').join('\n');
-        print('Sending response: $response');
-        socket.write(response);
-      } else {
-        print('Нет туров, подходящих под данный бюджет');
-        socket.write('Нет туров, подходящих под данный бюджет.');
+  socket.listen((List<int> data) {
+    String receivedData = utf8.decode(data);
+    double? clientCost = double.tryParse(receivedData);
+    if (clientCost != null) {
+      List<Map<String, dynamic>> selectedTours = [];
+      for (var tour in tours) {
+        if (tour.cost <= clientCost) {
+          selectedTours.add({'name': tour.name, 'cost': tour.cost});
+        }
       }
-
-      await socket.flush();
-    } catch (e) {
-      print('Error processing request: $e');
-      socket.write('Invalid budget format.\n');
-      await socket.flush(); 
+      String responseData = selectedTours.isNotEmpty
+          ? json.encode(selectedTours)
+          : 'Нет доступных туров';
+      socket.write(responseData);
+    } else {
+      socket.write('Ошибка: Неверный формат данных');
     }
   }, onError: (e) {
-    print('Ошибка: $e');
+    print('Ошибка при чтении данных: $e');
     socket.close();
   }, onDone: () {
-    print('Client disconnected');
+    print('Соединение с ${socket.remoteAddress}:${socket.remotePort} закрыто.');
     socket.close();
   });
 }
